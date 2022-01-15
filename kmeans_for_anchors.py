@@ -79,7 +79,7 @@ def load_data(path):
     #-------------------------------------------------------------#
     #   对于每一个xml都寻找box
     #-------------------------------------------------------------#
-    for xml_file in glob.glob('{}/*xml'.format(path)):
+    for xml_file in tqdm(glob.glob('{}/*xml'.format(path))):
         tree = ET.parse(xml_file)
         height = int(tree.findtext('./size/height'))
         width = int(tree.findtext('./size/width'))
