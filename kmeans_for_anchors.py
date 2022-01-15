@@ -6,7 +6,9 @@
 import glob
 import xml.etree.ElementTree as ET
 
+import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 
 def cas_ratio(box,cluster):
@@ -126,13 +128,25 @@ if __name__ == '__main__':
     #   使用k聚类算法
     #-------------------------------------------------------------#
     print('K-means boxes.')
-    out = kmeans(data,anchors_num)
+    cluster, near   = kmeans(data, anchors_num)
     print('K-means boxes done.')
+    data            = data * np.array([input_shape[1], input_shape[0]])
+    cluster         = cluster * np.array([input_shape[1], input_shape[0]])
 
-    out = out[np.argsort(out[:,0] * out[:,1])]
-    print('avg_ratio:{:.2f}'.format(avg_ratio(data,out)))
-    print(out*np.array([input_shape[1], input_shape[0]]))
-    data = out*np.array([input_shape[1], input_shape[0]])
+    #-------------------------------------------------------------#
+    #   绘图
+    #-------------------------------------------------------------#
+    for j in range(anchors_num):
+        plt.scatter(data[near == j][:,0], data[near == j][:,1])
+        plt.scatter(cluster[j][0], cluster[j][1], marker='x', c='black')
+    plt.show()
+    plt.savefig("kmeans_for_anchors.jpg")
+    print('Save kmeans_for_anchors.jpg in root dir.')
+
+    cluster = cluster[np.argsort(cluster[:, 0] * cluster[:, 1])]
+    print('avg_ratio:{:.2f}'.format(avg_ratio(data, cluster)))
+    print(data)
+    
     f = open("yolo_anchors.txt", 'w')
     row = np.shape(data)[0]
     for i in range(row):
