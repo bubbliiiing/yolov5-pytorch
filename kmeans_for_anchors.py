@@ -144,15 +144,15 @@ if __name__ == '__main__':
     print('Save kmeans_for_anchors.jpg in root dir.')
 
     cluster = cluster[np.argsort(cluster[:, 0] * cluster[:, 1])]
-    print('avg_ratio:{:.2f}'.format(avg_ratio(data, cluster)))
+    print('avg_ratio:{:.2f}'.format(avg_iou(data, cluster)))
     print(cluster)
-    
+
     f = open("yolo_anchors.txt", 'w')
-    row = np.shape(data)[0]
+    row = np.shape(cluster)[0]
     for i in range(row):
         if i == 0:
-            x_y = "%d,%d" % (data[i][0], data[i][1])
+            x_y = "%d,%d" % (cluster[i][0], cluster[i][1])
         else:
-            x_y = ", %d,%d" % (data[i][0], data[i][1])
+            x_y = ", %d,%d" % (cluster[i][0], cluster[i][1])
         f.write(x_y)
     f.close()
