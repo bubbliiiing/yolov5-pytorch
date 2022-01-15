@@ -144,7 +144,7 @@ if __name__ == '__main__':
     print('Save kmeans_for_anchors.jpg in root dir.')
 
     cluster = cluster[np.argsort(cluster[:, 0] * cluster[:, 1])]
-    print('avg_ratio:{:.2f}'.format(avg_iou(data, cluster)))
+    print('avg_ratio:{:.2f}'.format(cas_ratio(data, cluster)))
     print(cluster)
 
     f = open("yolo_anchors.txt", 'w')
