@@ -76,7 +76,9 @@ if __name__ == "__main__":
         while(True):
             t1 = time.time()
             # 读取某一帧
-            ref,frame=capture.read()
+            ref, frame = capture.read()
+            if not ref:
+                break
             # 格式转变，BGRtoRGB
             frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
             # 转变成Image
@@ -98,8 +100,12 @@ if __name__ == "__main__":
             if c==27:
                 capture.release()
                 break
+
+        print("Video Detection Done!")
         capture.release()
-        out.release()
+        if video_save_path!="":
+            print("Save processed video to the path :" + video_save_path)
+            out.release()
         cv2.destroyAllWindows()
 
     elif mode == "fps":
