@@ -72,7 +72,7 @@ def kmeans(box,k):
             print('iter: {:d}. avg_ratio:{:.2f}'.format(iter, avg_ratio(box,cluster)))
         iter += 1
 
-    return cluster
+    return cluster, near
 
 def load_data(path):
     data = []
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     #-------------------------------------------------------------#
     #   载入数据集，可以使用VOC的xml
     #-------------------------------------------------------------#
-    path        = 'VOCdevkit/VOC2007/Annotations'
+    path        = 'D:\Study\Collection\Dataset\VOC/VOCdevkit/VOC2007/Annotations'
     
     #-------------------------------------------------------------#
     #   载入所有的xml
