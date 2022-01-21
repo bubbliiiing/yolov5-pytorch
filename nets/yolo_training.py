@@ -1,15 +1,18 @@
+import math
+from functools import partial
+
+import numpy as np
 import torch
 import torch.nn as nn
-import math
-import numpy as np
+
 
 class YOLOLoss(nn.Module):
     def __init__(self, anchors, num_classes, input_shape, cuda, anchors_mask = [[6,7,8], [3,4,5], [0,1,2]], label_smoothing = 0):
         super(YOLOLoss, self).__init__()
         #-----------------------------------------------------------#
-        #   13x13的特征层对应的anchor是116,90, 156,198, 373,326
-        #   26x26的特征层对应的anchor是30,61, 62,45, 59,119
-        #   52x52的特征层对应的anchor是10,13, 16,30, 33,23
+        #   13x13的特征层对应的anchor是[142, 110],[192, 243],[459, 401]
+        #   26x26的特征层对应的anchor是[36, 75],[76, 55],[72, 146]
+        #   52x52的特征层对应的anchor是[12, 16],[19, 36],[40, 28]
         #-----------------------------------------------------------#
         self.anchors        = anchors
         self.num_classes    = num_classes
@@ -21,9 +24,9 @@ class YOLOLoss(nn.Module):
         self.threshold      = 4
 
         self.balance        = [0.4, 1.0, 4]
-        self.box_ratio      = 5
-        self.cls_ratio      = 0.5
-        self.obj_ratio      = 1
+        self.box_ratio      = 0.05
+        self.obj_ratio      = 1 * (input_shape[0] * input_shape[1]) / (640 ** 2)
+        self.cls_ratio      = 0.5 * (num_classes / 80)
         self.cuda = cuda
 
     def clip_by_tensor(self, t, t_min, t_max):
@@ -161,7 +164,7 @@ class YOLOLoss(nn.Module):
         #-----------------------------------------------#
         #   获得网络应该有的预测结果
         #-----------------------------------------------#
-        y_true, noobj_mask, box_loss_scale = self.get_target(l, targets, scaled_anchors, in_h, in_w)
+        y_true, noobj_mask = self.get_target(l, targets, scaled_anchors, in_h, in_w)
 
         #---------------------------------------------------------------#
         #   将预测结果进行解码，判断预测结果和真实值的重合程度
@@ -173,31 +176,29 @@ class YOLOLoss(nn.Module):
         if self.cuda:
             y_true          = y_true.cuda()
             noobj_mask      = noobj_mask.cuda()
-            box_loss_scale  = box_loss_scale.cuda()
-        #-----------------------------------------------------------#
-        #   reshape_y_true[...,2:3]和reshape_y_true[...,3:4]
-        #   表示真实框的宽高，二者均在0-1之间
-        #   真实框越大，比重越小，小框的比重更大。
-        #-----------------------------------------------------------#
-        box_loss_scale = 2 - box_loss_scale
+        
+        loss    = 0
+        n       = torch.sum(y_true[..., 4] == 1)
+        if n != 0:
+            #---------------------------------------------------------------#
+            #   计算预测结果和真实结果的giou
+            #----------------------------------------------------------------#
+            giou        = self.box_giou(pred_boxes, y_true[..., :4])
+            loss_loc    = torch.mean((1 - giou)[y_true[..., 4] == 1])
+            loss_cls    = torch.mean(self.BCELoss(pred_cls[y_true[..., 4] == 1], self.smooth_labels(y_true[..., 5:][y_true[..., 4] == 1], self.label_smoothing, self.num_classes)))
+            loss        += loss_loc * self.box_ratio + loss_cls * self.cls_ratio
+            #-----------------------------------------------------------#
+            #   计算置信度的loss
+            #-----------------------------------------------------------#
+            tobj        = torch.where(y_true[..., 4] == 1, giou.detach().clamp(0), torch.zeros_like(y_true[..., 4]))
+        else:
+            tobj        = torch.zeros_like(y_true[..., 4])
+        loss_conf   = torch.mean(self.BCELoss(conf, tobj))
 
-        #---------------------------------------------------------------#
-        #   计算预测结果和真实结果的giou
-        #----------------------------------------------------------------#
-        giou        = self.box_giou(pred_boxes[y_true[..., 4] == 1], y_true[..., :4][y_true[..., 4] == 1])
-
-        loss_loc    = torch.sum((1 - giou) * box_loss_scale[y_true[..., 4] == 1])
-        #-----------------------------------------------------------#
-        #   计算置信度的loss
-        #-----------------------------------------------------------#
-        loss_conf   = torch.sum(self.BCELoss(conf[y_true[..., 4] == 1], giou.detach().clamp(0))) + \
-                      torch.sum(self.BCELoss(conf, y_true[..., 4]) * noobj_mask)
-        loss_cls    = torch.sum(self.BCELoss(pred_cls[y_true[..., 4] == 1], self.smooth_labels(y_true[..., 5:][y_true[..., 4] == 1], self.label_smoothing, self.num_classes)))
-
-        loss        = loss_loc * self.box_ratio + loss_conf * self.balance[l] * self.obj_ratio + loss_cls * self.cls_ratio
-        num_pos = torch.sum(y_true[..., 4])
-        num_pos = torch.max(num_pos, torch.ones_like(num_pos))
-        return loss, num_pos
+        if n != 0:
+            print(loss_loc * self.box_ratio, loss_cls * self.cls_ratio, loss_conf * self.balance[l] * self.obj_ratio)
+        loss        += loss_conf * self.balance[l] * self.obj_ratio
+        return loss
     
     def get_near_points(self, x, y, i, j):
         sub_x = x - i
@@ -220,10 +221,6 @@ class YOLOLoss(nn.Module):
         #   用于选取哪些先验框不包含物体
         #-----------------------------------------------------#
         noobj_mask      = torch.ones(bs, len(self.anchors_mask[l]), in_h, in_w, requires_grad = False)
-        #-----------------------------------------------------#
-        #   让网络更加去关注小目标
-        #-----------------------------------------------------#
-        box_loss_scale  = torch.zeros(bs, len(self.anchors_mask[l]), in_h, in_w, requires_grad = False)
         #-----------------------------------------------------#
         #   anchors_best_ratio
         #-----------------------------------------------------#
@@ -307,16 +304,11 @@ class YOLOLoss(nn.Module):
                         y_true[b, k, local_j, local_i, 4] = 1
                         y_true[b, k, local_j, local_i, c + 5] = 1
                         #----------------------------------------#
-                        #   用于获得xywh的比例
-                        #   大目标loss权重小，小目标loss权重大
-                        #----------------------------------------#
-                        box_loss_scale[b, k, local_j, local_i] = batch_target[t, 2] * batch_target[t, 3] / in_w / in_h
-                        #----------------------------------------#
                         #   获得当前先验框最好的比例
                         #----------------------------------------#
                         box_best_ratio[b, k, local_j, local_i] = ratio[mask]
                         
-        return y_true, noobj_mask, box_loss_scale
+        return y_true, noobj_mask
 
     def get_pred_boxes(self, l, x, y, h, w, targets, scaled_anchors, in_h, in_w):
         #-----------------------------------------------------#
@@ -370,3 +362,46 @@ def weights_init(net, init_type='normal', init_gain = 0.02):
             torch.nn.init.constant_(m.bias.data, 0.0)
     print('initialize network with %s type' % init_type)
     net.apply(init_func)
+
+def get_lr_scheduler(lr_decay_type, lr, min_lr, total_iters, warmup_iters_ratio = 0.1, warmup_lr_ratio = 0.1, no_aug_iter_ratio = 0.3, step_num = 10):
+    def yolox_warm_cos_lr(lr, min_lr, total_iters, warmup_total_iters, warmup_lr_start, no_aug_iter, iters):
+        if iters <= warmup_total_iters:
+            # lr = (lr - warmup_lr_start) * iters / float(warmup_total_iters) + warmup_lr_start
+            lr = (lr - warmup_lr_start) * pow(iters / float(warmup_total_iters), 2
+            ) + warmup_lr_start
+        elif iters >= total_iters - no_aug_iter:
+            lr = min_lr
+        else:
+            lr = min_lr + 0.5 * (lr - min_lr) * (
+                1.0
+                + math.cos(
+                    math.pi
+                    * (iters - warmup_total_iters)
+                    / (total_iters - warmup_total_iters - no_aug_iter)
+                )
+            )
+        return lr
+
+    def step_lr(lr, decay_rate, step_size, iters):
+        if step_size < 1:
+            raise ValueError("step_size must above 1.")
+        n       = iters // step_size
+        out_lr  = lr * decay_rate ** n
+        return out_lr
+
+    if lr_decay_type == "cos":
+        warmup_total_iters  = min(max(warmup_iters_ratio * total_iters, 1), 3)
+        warmup_lr_start     = max(warmup_lr_ratio * lr, 1e-6)
+        no_aug_iter         = min(max(no_aug_iter_ratio * total_iters, 1), 15)
+        func = partial(yolox_warm_cos_lr ,lr, min_lr, total_iters, warmup_total_iters, warmup_lr_start, no_aug_iter)
+    else:
+        decay_rate  = (min_lr / lr) ** (1 / (step_num - 1))
+        step_size   = total_iters / step_num
+        func = partial(step_lr, lr, decay_rate, step_size)
+
+    return func
+
+def set_optimizer_lr(optimizer, lr_scheduler_func, epoch):
+    lr = lr_scheduler_func(epoch)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr

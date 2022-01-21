@@ -73,10 +73,10 @@ if __name__ == "__main__":
         
         print("train and val size",tv)
         print("train size",tr)
-        ftrainval   = open(os.path.join(saveBasePath,'trainval.txt'), 'w')  
-        ftest       = open(os.path.join(saveBasePath,'test.txt'), 'w')  
-        ftrain      = open(os.path.join(saveBasePath,'train.txt'), 'w')  
-        fval        = open(os.path.join(saveBasePath,'val.txt'), 'w')  
+        ftrainval   = open(os.path.join(saveBasePath,'trainval.txt'), 'w', encoding='utf-8')  
+        ftest       = open(os.path.join(saveBasePath,'test.txt'), 'w', encoding='utf-8')  
+        ftrain      = open(os.path.join(saveBasePath,'train.txt'), 'w', encoding='utf-8')  
+        fval        = open(os.path.join(saveBasePath,'val.txt'), 'w', encoding='utf-8')  
         
         for i in list:  
             name=total_xml[i][:-4]+'\n'  

@@ -49,7 +49,7 @@ if __name__ == "__main__":
     #-------------------------------------------------------#
     map_out_path    = 'map_out'
 
-    image_ids = open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Main/test.txt")).read().strip().split()
+    image_ids = open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Main/test.txt"), encoding='utf-8').read().strip().split()
 
     if not os.path.exists(map_out_path):
         os.makedirs(map_out_path)
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     if map_mode == 0 or map_mode == 2:
         print("Get ground truth result.")
         for image_id in tqdm(image_ids):
-            with open(os.path.join(map_out_path, "ground-truth/"+image_id+".txt"), "w") as new_f:
+            with open(os.path.join(map_out_path, "ground-truth/"+image_id+".txt"), "w", encoding='utf-8') as new_f:
                 root = ET.parse(os.path.join(VOCdevkit_path, "VOC2007/Annotations/"+image_id+".xml")).getroot()
                 for obj in root.findall('object'):
                     difficult_flag = False

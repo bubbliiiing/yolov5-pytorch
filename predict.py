@@ -115,6 +115,7 @@ if __name__ == "__main__":
 
     elif mode == "dir_predict":
         import os
+
         from tqdm import tqdm
 
         img_names = os.listdir(dir_origin_path)
