@@ -194,9 +194,7 @@ class YOLOLoss(nn.Module):
         else:
             tobj        = torch.zeros_like(y_true[..., 4])
         loss_conf   = torch.mean(self.BCELoss(conf, tobj))
-
-        if n != 0:
-            print(loss_loc * self.box_ratio, loss_cls * self.cls_ratio, loss_conf * self.balance[l] * self.obj_ratio)
+        
         loss        += loss_conf * self.balance[l] * self.obj_ratio
         return loss
     
