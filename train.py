@@ -239,7 +239,7 @@ if __name__ == "__main__":
         #-------------------------------------------------------------------#
         #   判断当前batch_size与64的差别，自适应调整学习率
         #-------------------------------------------------------------------#
-        nbs     = 64
+        nbs     = 64 if not Freeze_Train else 32 # nominal batch size
         Init_lr = max(batch_size / nbs * Init_lr, 1e-4)
         Min_lr  = max(batch_size / nbs * Min_lr, 1e-6)
 
