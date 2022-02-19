@@ -101,7 +101,7 @@ if __name__ == "__main__":
             for image_id in tqdm(ids):
                 image_path  = os.path.join(dataset_img_path, cocoGt.loadImgs(image_id)[0]['file_name'])
                 image       = Image.open(image_path)
-                results     = yolo.detect_image(image_id, image, results)
+                results     = yolo.detect_image(image_id, image, results, clsid2catid)
             json.dump(results, f)
 
     if map_mode == 0 or map_mode == 2:
