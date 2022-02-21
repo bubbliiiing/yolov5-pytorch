@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class LossHistory():
-    def __init__(self, log_dir, model):
+    def __init__(self, log_dir, model, input_shape):
         time_str        = datetime.datetime.strftime(datetime.datetime.now(),'%Y_%m_%d_%H_%M_%S')
         self.log_dir    = os.path.join(log_dir, "loss_" + str(time_str))
         self.losses     = []
@@ -18,7 +18,7 @@ class LossHistory():
         
         os.makedirs(self.log_dir)
         self.writer     = SummaryWriter(self.log_dir)
-        dummy_input     = torch.randn(2, 3, 128, 128)
+        dummy_input     = torch.randn(2, 3, input_shape[0], input_shape[1])
         self.writer.add_graph(model, dummy_input)
 
     def append_loss(self, epoch, loss, val_loss):

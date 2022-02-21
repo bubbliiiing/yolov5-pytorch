@@ -196,7 +196,7 @@ if __name__ == "__main__":
         model.load_state_dict(model_dict)
         
     yolo_loss    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
-    loss_history = LossHistory("logs/", model)
+    loss_history = LossHistory("logs/", model, input_shape=input_shape)
 
     model_train = model.train()
     if Cuda:
