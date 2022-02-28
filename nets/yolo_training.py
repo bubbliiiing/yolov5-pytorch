@@ -196,6 +196,8 @@ class YOLOLoss(nn.Module):
         loss_conf   = torch.mean(self.BCELoss(conf, tobj))
         
         loss        += loss_conf * self.balance[l] * self.obj_ratio
+        # if n != 0:
+        #     print(loss_loc * self.box_ratio, loss_cls * self.cls_ratio, loss_conf * self.balance[l] * self.obj_ratio)
         return loss
     
     def get_near_points(self, x, y, i, j):
