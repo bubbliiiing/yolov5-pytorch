@@ -104,7 +104,7 @@ if __name__ == "__main__":
     #       其中：UnFreeze_Epoch可以在100-300之间调整。optimizer_type = 'sgd'，Init_lr = 1e-2。
     #   （二）从0开始训练：
     #       Init_Epoch = 0，UnFreeze_Epoch >= 300，Unfreeze_batch_size >= 16，Freeze_Train = False（不冻结训练）
-    #       其中：UnFreeze_Epoch尽量不小于300。optimizer_type = 'sgd'，Init_lr = 1e-2。
+    #       其中：UnFreeze_Epoch尽量不小于300。optimizer_type = 'sgd'，Init_lr = 1e-2，mosaic = True。
     #   （三）batch_size的设置：
     #       在显卡能够接受的范围内，以大为好。显存不足与数据集大小无关，提示显存不足（OOM或者CUDA out of memory）请调小batch_size。
     #       受到BatchNorm层影响，batch_size最小为2，不能为1。
@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
     #------------------------------------------------------#
     #   train_annotation_path   训练图片路径和标签
-    #   val_annotation_path     训练图片路径和标签
+    #   val_annotation_path     验证图片路径和标签
     #------------------------------------------------------#
     train_annotation_path   = '2007_train.txt'
     val_annotation_path     = '2007_val.txt'
