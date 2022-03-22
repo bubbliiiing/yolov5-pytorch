@@ -169,6 +169,10 @@ if __name__ == "__main__":
     #------------------------------------------------------------------#
     save_period         = 1
     #------------------------------------------------------------------#
+    #   save_dir        权值与日志文件保存的文件夹
+    #------------------------------------------------------------------#
+    save_dir            = 'logs'
+    #------------------------------------------------------------------#
     #   num_workers     用于设置是否使用多线程读取数据
     #                   开启后会加快数据读取速度，但是会占用更多内存
     #                   内存较小的电脑可以设置为2或者0  
@@ -206,7 +210,7 @@ if __name__ == "__main__":
         model.load_state_dict(model_dict)
         
     yolo_loss    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
-    loss_history = LossHistory("logs/", model, input_shape=input_shape)
+    loss_history = LossHistory(save_dir, model, input_shape=input_shape)
 
     model_train = model.train()
     if Cuda:
@@ -338,4 +342,4 @@ if __name__ == "__main__":
 
             set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
 
-            fit_one_epoch(model_train, model, yolo_loss, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, save_period)
+            fit_one_epoch(model_train, model, yolo_loss, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, save_period, save_dir)
