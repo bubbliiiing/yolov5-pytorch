@@ -99,9 +99,13 @@ if __name__ == "__main__":
     #      
     #   在此提供若干参数设置建议，各位训练者根据自己的需求进行灵活调整：
     #   （一）从整个模型的预训练权重开始训练： 
-    #       Init_Epoch = 0，Freeze_Epoch = 50，UnFreeze_Epoch = 100，Freeze_Train = True（默认参数）
-    #       Init_Epoch = 0，UnFreeze_Epoch = 100，Freeze_Train = False（不冻结训练）
-    #       其中：UnFreeze_Epoch可以在100-300之间调整。optimizer_type = 'sgd'，Init_lr = 1e-2。
+    #       Adam：
+    #           Init_Epoch = 0，Freeze_Epoch = 50，UnFreeze_Epoch = 100，Freeze_Train = True，optimizer_type = 'adam'，Init_lr = 1e-3，weight_decay = 0。（冻结）
+    #           Init_Epoch = 0，UnFreeze_Epoch = 100，Freeze_Train = False，optimizer_type = 'adam'，Init_lr = 1e-3，weight_decay = 0。（不冻结）
+    #       SGD：
+    #           Init_Epoch = 0，Freeze_Epoch = 50，UnFreeze_Epoch = 100，Freeze_Train = True，optimizer_type = 'sgd'，Init_lr = 1e-2，weight_decay = 5e-4。（冻结）
+    #           Init_Epoch = 0，UnFreeze_Epoch = 100，Freeze_Train = False，optimizer_type = 'sgd'，Init_lr = 1e-2，weight_decay = 5e-4。（不冻结）
+    #       其中：UnFreeze_Epoch可以在100-300之间调整。
     #   （二）从0开始训练：
     #       Init_Epoch = 0，UnFreeze_Epoch >= 300，Unfreeze_batch_size >= 16，Freeze_Train = False（不冻结训练）
     #       其中：UnFreeze_Epoch尽量不小于300。optimizer_type = 'sgd'，Init_lr = 1e-2，mosaic = True。
@@ -252,11 +256,13 @@ if __name__ == "__main__":
         batch_size = Freeze_batch_size if Freeze_Train else Unfreeze_batch_size
 
         #-------------------------------------------------------------------#
-        #   判断当前batch_size与64的差别，自适应调整学习率
+        #   判断当前batch_size，自适应调整学习率
         #-------------------------------------------------------------------#
-        nbs         = 64
-        Init_lr_fit = max(batch_size / nbs * Init_lr, 3e-4)
-        Min_lr_fit  = max(batch_size / nbs * Min_lr, 3e-6)
+        nbs             = 64
+        lr_limit_max    = 1e-3 if optimizer_type == 'adam' else 5e-2
+        lr_limit_min    = 3e-4 if optimizer_type == 'adam' else 5e-4
+        Init_lr_fit     = min(max(batch_size / nbs * Init_lr, lr_limit_min), lr_limit_max)
+        Min_lr_fit      = min(max(batch_size / nbs * Min_lr, lr_limit_min * 1e-2), lr_limit_max * 1e-2)
 
         #---------------------------------------#
         #   根据optimizer_type选择优化器
@@ -312,11 +318,13 @@ if __name__ == "__main__":
                 batch_size = Unfreeze_batch_size
 
                 #-------------------------------------------------------------------#
-                #   判断当前batch_size与64的差别，自适应调整学习率
+                #   判断当前batch_size，自适应调整学习率
                 #-------------------------------------------------------------------#
-                nbs         = 64
-                Init_lr_fit = max(batch_size / nbs * Init_lr, 3e-4)
-                Min_lr_fit  = max(batch_size / nbs * Min_lr, 3e-6)
+                nbs             = 64
+                lr_limit_max    = 1e-3 if optimizer_type == 'adam' else 5e-2
+                lr_limit_min    = 3e-4 if optimizer_type == 'adam' else 5e-4
+                Init_lr_fit     = min(max(batch_size / nbs * Init_lr, lr_limit_min), lr_limit_max)
+                Min_lr_fit      = min(max(batch_size / nbs * Min_lr, lr_limit_min * 1e-2), lr_limit_max * 1e-2)
                 #---------------------------------------#
                 #   获得学习率下降的公式
                 #---------------------------------------#
