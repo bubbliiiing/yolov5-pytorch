@@ -43,30 +43,47 @@ class YoloBody(nn.Module):
         self.down_sample2           = Conv(base_channels * 8, base_channels * 8, 3, 2)
         self.conv3_for_downsample2  = C3(base_channels * 16, base_channels * 16, base_depth, shortcut=False)
 
+        # 80, 80, 256 => 80, 80, 3 * (5 + num_classes) => 80, 80, 3 * (4 + 1 + num_classes)
         self.yolo_head_P3 = nn.Conv2d(base_channels * 4, len(anchors_mask[2]) * (5 + num_classes), 1)
+        # 40, 40, 512 => 40, 40, 3 * (5 + num_classes) => 40, 40, 3 * (4 + 1 + num_classes)
         self.yolo_head_P4 = nn.Conv2d(base_channels * 8, len(anchors_mask[1]) * (5 + num_classes), 1)
+        # 20, 20, 1024 => 20, 20, 3 * (5 + num_classes) => 20, 20, 3 * (4 + 1 + num_classes)
         self.yolo_head_P5 = nn.Conv2d(base_channels * 16, len(anchors_mask[0]) * (5 + num_classes), 1)
 
     def forward(self, x):
         #  backbone
         feat1, feat2, feat3 = self.backbone(x)
 
+        # 20, 20, 1024 -> 20, 20, 512
         P5          = self.conv_for_feat3(feat3)
+        # 20, 20, 512 -> 40, 40, 512
         P5_upsample = self.upsample(P5)
+        # 40, 40, 512 -> 40, 40, 1024
         P4          = torch.cat([P5_upsample, feat2], 1)
+        # 40, 40, 1024 -> 40, 40, 512
         P4          = self.conv3_for_upsample1(P4)
 
+        # 40, 40, 512 -> 40, 40, 256
         P4          = self.conv_for_feat2(P4)
+        # 40, 40, 256 -> 80, 80, 256
         P4_upsample = self.upsample(P4)
+        # 80, 80, 256 cat 80, 80, 256 -> 80, 80, 512
         P3          = torch.cat([P4_upsample, feat1], 1)
+        # 80, 80, 512 -> 80, 80, 256
         P3          = self.conv3_for_upsample2(P3)
-
+        
+        # 80, 80, 256 -> 40, 40, 256
         P3_downsample = self.down_sample1(P3)
+        # 40, 40, 256 cat 40, 40, 256 -> 40, 40, 512
         P4 = torch.cat([P3_downsample, P4], 1)
+        # 40, 40, 512 -> 40, 40, 512
         P4 = self.conv3_for_downsample1(P4)
 
+        # 40, 40, 512 -> 20, 20, 512
         P4_downsample = self.down_sample2(P4)
+        # 20, 20, 512 cat 20, 20, 512 -> 20, 20, 1024
         P5 = torch.cat([P4_downsample, P5], 1)
+        # 20, 20, 1024 -> 20, 20, 1024
         P5 = self.conv3_for_downsample2(P5)
 
         #---------------------------------------------------#

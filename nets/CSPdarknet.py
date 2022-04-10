@@ -18,14 +18,25 @@ class Focus(nn.Module):
         self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
 
     def forward(self, x):
-        return self.conv(torch.cat([x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]], 1))
+        # 320, 320, 12 => 320, 320, 64
+        return self.conv(
+            # 640, 640, 3 => 320, 320, 12
+            torch.cat(
+                [
+                    x[..., ::2, ::2], 
+                    x[..., 1::2, ::2], 
+                    x[..., ::2, 1::2], 
+                    x[..., 1::2, 1::2]
+                ], 1
+            )
+        )
 
 class Conv(nn.Module):
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):
         super(Conv, self).__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
-        self.bn = nn.BatchNorm2d(c2, eps=0.001, momentum=0.03)
-        self.act = SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
+        self.conv   = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
+        self.bn     = nn.BatchNorm2d(c2, eps=0.001, momentum=0.03)
+        self.act    = SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -57,7 +68,12 @@ class C3(nn.Module):
         # self.m = nn.Sequential(*[CrossConv(c_, c_, 3, 1, g, 1.0, shortcut) for _ in range(n)])
 
     def forward(self, x):
-        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+        return self.cv3(torch.cat(
+            (
+                self.m(self.cv1(x)), 
+                self.cv2(x)
+            )
+            , dim=1))
 
 class SPP(nn.Module):
     # Spatial pyramid pooling layer used in YOLOv3-SPP
@@ -77,7 +93,7 @@ class CSPDarknet(nn.Module):
         super().__init__()
         #-----------------------------------------------#
         #   输入图片是640, 640, 3
-        #   初始的基本通道是64
+        #   初始的基本通道base_channels是64
         #-----------------------------------------------#
 
         #-----------------------------------------------#
@@ -85,17 +101,23 @@ class CSPDarknet(nn.Module):
         #   640, 640, 3 -> 320, 320, 12 -> 320, 320, 64
         #-----------------------------------------------#
         self.stem       = Focus(3, base_channels, k=3)
+        
         #-----------------------------------------------#
         #   完成卷积之后，320, 320, 64 -> 160, 160, 128
         #   完成CSPlayer之后，160, 160, 128 -> 160, 160, 128
         #-----------------------------------------------#
         self.dark2 = nn.Sequential(
+            # 320, 320, 64 -> 160, 160, 128
             Conv(base_channels, base_channels * 2, 3, 2),
+            # 160, 160, 128 -> 160, 160, 128
             C3(base_channels * 2, base_channels * 2, base_depth),
         )
+        
         #-----------------------------------------------#
         #   完成卷积之后，160, 160, 128 -> 80, 80, 256
         #   完成CSPlayer之后，80, 80, 256 -> 80, 80, 256
+        #                   在这里引出有效特征层80, 80, 256
+        #                   进行加强特征提取网络FPN的构建
         #-----------------------------------------------#
         self.dark3 = nn.Sequential(
             Conv(base_channels * 2, base_channels * 4, 3, 2),
@@ -105,11 +127,14 @@ class CSPDarknet(nn.Module):
         #-----------------------------------------------#
         #   完成卷积之后，80, 80, 256 -> 40, 40, 512
         #   完成CSPlayer之后，40, 40, 512 -> 40, 40, 512
+        #                   在这里引出有效特征层40, 40, 512
+        #                   进行加强特征提取网络FPN的构建
         #-----------------------------------------------#
         self.dark4 = nn.Sequential(
             Conv(base_channels * 4, base_channels * 8, 3, 2),
             C3(base_channels * 8, base_channels * 8, base_depth * 3),
         )
+        
         #-----------------------------------------------#
         #   完成卷积之后，40, 40, 512 -> 20, 20, 1024
         #   完成SPP之后，20, 20, 1024 -> 20, 20, 1024
