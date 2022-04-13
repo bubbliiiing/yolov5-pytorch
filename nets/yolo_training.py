@@ -10,9 +10,9 @@ class YOLOLoss(nn.Module):
     def __init__(self, anchors, num_classes, input_shape, cuda, anchors_mask = [[6,7,8], [3,4,5], [0,1,2]], label_smoothing = 0):
         super(YOLOLoss, self).__init__()
         #-----------------------------------------------------------#
-        #   13x13的特征层对应的anchor是[142, 110],[192, 243],[459, 401]
-        #   26x26的特征层对应的anchor是[36, 75],[76, 55],[72, 146]
-        #   52x52的特征层对应的anchor是[12, 16],[19, 36],[40, 28]
+        #   20x20的特征层对应的anchor是[116,90],[156,198],[373,326]
+        #   40x40的特征层对应的anchor是[30,61],[62,45],[59,119]
+        #   80x80的特征层对应的anchor是[10,13],[16,30],[33,23]
         #-----------------------------------------------------------#
         self.anchors        = anchors
         self.num_classes    = num_classes
@@ -106,14 +106,15 @@ class YOLOLoss(nn.Module):
 
     def forward(self, l, input, targets=None):
         #----------------------------------------------------#
-        #   l 代表使用的是第几个有效特征层
-        #   input的shape为  bs, 3*(5+num_classes), 13, 13
-        #                   bs, 3*(5+num_classes), 26, 26
-        #                   bs, 3*(5+num_classes), 52, 52
-        #   targets 真实框的标签情况 [batch_size, num_gt, 5]
+        #   l               代表使用的是第几个有效特征层
+        #   input的shape为  bs, 3*(5+num_classes), 20, 20
+        #                   bs, 3*(5+num_classes), 40, 40
+        #                   bs, 3*(5+num_classes), 80, 80
+        #   targets         真实框的标签情况 [batch_size, num_gt, 5]
         #----------------------------------------------------#
         #--------------------------------#
         #   获得图片数量，特征层的高和宽
+        #   20, 20
         #--------------------------------#
         bs      = input.size(0)
         in_h    = input.size(2)
@@ -121,10 +122,10 @@ class YOLOLoss(nn.Module):
         #-----------------------------------------------------------------------#
         #   计算步长
         #   每一个特征点对应原来的图片上多少个像素点
-        #   
-        #   如果特征层为13x13的话，一个特征点就对应原来的图片上的32个像素点
-        #   如果特征层为26x26的话，一个特征点就对应原来的图片上的16个像素点
-        #   如果特征层为52x52的话，一个特征点就对应原来的图片上的8个像素点
+        #   [640, 640] 高的步长为640 / 20 = 32，宽的步长为640 / 20 = 32
+        #   如果特征层为20x20的话，一个特征点就对应原来的图片上的32个像素点
+        #   如果特征层为40x40的话，一个特征点就对应原来的图片上的16个像素点
+        #   如果特征层为80x80的话，一个特征点就对应原来的图片上的8个像素点
         #   stride_h = stride_w = 32、16、8
         #-----------------------------------------------------------------------#
         stride_h = self.input_shape[0] / in_h
@@ -135,11 +136,11 @@ class YOLOLoss(nn.Module):
         scaled_anchors  = [(a_w / stride_w, a_h / stride_h) for a_w, a_h in self.anchors]
         #-----------------------------------------------#
         #   输入的input一共有三个，他们的shape分别是
-        #   bs, 3 * (5+num_classes), 13, 13 => bs, 3, 5 + num_classes, 13, 13 => batch_size, 3, 13, 13, 5 + num_classes
+        #   bs, 3 * (5+num_classes), 20, 20 => bs, 3, 5 + num_classes, 20, 20 => batch_size, 3, 20, 20, 5 + num_classes
 
-        #   batch_size, 3, 13, 13, 5 + num_classes
-        #   batch_size, 3, 26, 26, 5 + num_classes
-        #   batch_size, 3, 52, 52, 5 + num_classes
+        #   batch_size, 3, 20, 20, 5 + num_classes
+        #   batch_size, 3, 40, 40, 5 + num_classes
+        #   batch_size, 3, 80, 80, 5 + num_classes
         #-----------------------------------------------#
         prediction = input.view(bs, len(self.anchors_mask[l]), self.bbox_attrs, in_h, in_w).permute(0, 1, 3, 4, 2).contiguous()
         
@@ -181,7 +182,8 @@ class YOLOLoss(nn.Module):
         n       = torch.sum(y_true[..., 4] == 1)
         if n != 0:
             #---------------------------------------------------------------#
-            #   计算预测结果和真实结果的giou
+            #   计算预测结果和真实结果的giou，计算对应有真实框的先验框的giou损失
+            #                         loss_cls计算对应有真实框的先验框的分类损失
             #----------------------------------------------------------------#
             giou        = self.box_giou(pred_boxes, y_true[..., :4])
             loss_loc    = torch.mean((1 - giou)[y_true[..., 4] == 1])
@@ -189,6 +191,8 @@ class YOLOLoss(nn.Module):
             loss        += loss_loc * self.box_ratio + loss_cls * self.cls_ratio
             #-----------------------------------------------------------#
             #   计算置信度的loss
+            #   也就意味着先验框对应的预测框预测的更准确
+            #   它才是用来预测这个物体的。
             #-----------------------------------------------------------#
             tobj        = torch.where(y_true[..., 4] == 1, giou.detach().clamp(0), torch.zeros_like(y_true[..., 4]))
         else:
@@ -219,14 +223,15 @@ class YOLOLoss(nn.Module):
         bs              = len(targets)
         #-----------------------------------------------------#
         #   用于选取哪些先验框不包含物体
+        #   bs, 3, 20, 20
         #-----------------------------------------------------#
         noobj_mask      = torch.ones(bs, len(self.anchors_mask[l]), in_h, in_w, requires_grad = False)
         #-----------------------------------------------------#
-        #   anchors_best_ratio
+        #   帮助找到每一个先验框最对应的真实框
         #-----------------------------------------------------#
         box_best_ratio = torch.zeros(bs, len(self.anchors_mask[l]), in_h, in_w, requires_grad = False)
         #-----------------------------------------------------#
-        #   batch_size, 3, 13, 13, 5 + num_classes
+        #   batch_size, 3, 20, 20, 5 + num_classes
         #-----------------------------------------------------#
         y_true          = torch.zeros(bs, len(self.anchors_mask[l]), in_h, in_w, self.bbox_attrs, requires_grad = False)
         for b in range(bs):            
@@ -235,22 +240,26 @@ class YOLOLoss(nn.Module):
             batch_target = torch.zeros_like(targets[b])
             #-------------------------------------------------------#
             #   计算出正样本在特征层上的中心点
+            #   获得真实框相对于特征层的大小
             #-------------------------------------------------------#
             batch_target[:, [0,2]] = targets[b][:, [0,2]] * in_w
             batch_target[:, [1,3]] = targets[b][:, [1,3]] * in_h
             batch_target[:, 4] = targets[b][:, 4]
             batch_target = batch_target.cpu()
             
-            #-------------------------------------------------------#
-            #   batch_target            : num_true_box, 4
-            #   anchors                 : 9, 2
-            #
+            #-----------------------------------------------------------------------------#
+            #   batch_target                                    : num_true_box, 5
+            #   batch_target[:, 2:4]                            : num_true_box, 2
+            #   torch.unsqueeze(batch_target[:, 2:4], 1)        : num_true_box, 1, 2
+            #   anchors                                         : 9, 2
+            #   torch.unsqueeze(torch.FloatTensor(anchors), 0)  : 1, 9, 2
             #   ratios_of_gt_anchors    : num_true_box, 9, 2
             #   ratios_of_anchors_gt    : num_true_box, 9, 2
             #
             #   ratios                  : num_true_box, 9, 4
-            #   max_ratios              : num_true_box, 9
-            #-------------------------------------------------------#
+            #   max_ratios              : num_true_box, 9   
+            #   max_ratios每一个真实框和每一个先验框的最大宽高比！
+            #------------------------------------------------------------------------------#
             ratios_of_gt_anchors = torch.unsqueeze(batch_target[:, 2:4], 1) / torch.unsqueeze(torch.FloatTensor(anchors), 0)
             ratios_of_anchors_gt = torch.unsqueeze(torch.FloatTensor(anchors), 0) /  torch.unsqueeze(batch_target[:, 2:4], 1)
             ratios               = torch.cat([ratios_of_gt_anchors, ratios_of_anchors_gt], dim = -1)
@@ -267,6 +276,8 @@ class YOLOLoss(nn.Module):
                         continue
                     #----------------------------------------#
                     #   获得真实框属于哪个网格点
+                    #   x  1.25     => 1
+                    #   y  3.75     => 3
                     #----------------------------------------#
                     i = torch.floor(batch_target[t, 0]).long()
                     j = torch.floor(batch_target[t, 1]).long()
@@ -363,7 +374,7 @@ def weights_init(net, init_type='normal', init_gain = 0.02):
     print('initialize network with %s type' % init_type)
     net.apply(init_func)
 
-def get_lr_scheduler(lr_decay_type, lr, min_lr, total_iters, warmup_iters_ratio = 0.1, warmup_lr_ratio = 0.1, no_aug_iter_ratio = 0.3, step_num = 10):
+def get_lr_scheduler(lr_decay_type, lr, min_lr, total_iters, warmup_iters_ratio = 0.05, warmup_lr_ratio = 0.1, no_aug_iter_ratio = 0.05, step_num = 10):
     def yolox_warm_cos_lr(lr, min_lr, total_iters, warmup_total_iters, warmup_lr_start, no_aug_iter, iters):
         if iters <= warmup_total_iters:
             # lr = (lr - warmup_lr_start) * iters / float(warmup_total_iters) + warmup_lr_start
