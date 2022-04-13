@@ -369,9 +369,9 @@ if __name__ == "__main__":
             val_sampler     = None
         
         gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                    drop_last=True, collate_fn=yolo_dataset_collate)
+                                    drop_last=True, collate_fn=yolo_dataset_collate, sampler=train_sampler)
         gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                    drop_last=True, collate_fn=yolo_dataset_collate)
+                                    drop_last=True, collate_fn=yolo_dataset_collate, sampler=val_sampler)
 
         #---------------------------------------#
         #   开始模型训练
@@ -410,9 +410,9 @@ if __name__ == "__main__":
                     batch_size = batch_size // ngpus_per_node
                     
                 gen     = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                            drop_last=True, collate_fn=yolo_dataset_collate)
+                                            drop_last=True, collate_fn=yolo_dataset_collate, sampler=train_sampler)
                 gen_val = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                            drop_last=True, collate_fn=yolo_dataset_collate)
+                                            drop_last=True, collate_fn=yolo_dataset_collate, sampler=val_sampler)
 
                 UnFreeze_flag = True
 
