@@ -175,8 +175,8 @@ class YOLOLoss(nn.Module):
         pred_boxes = self.get_pred_boxes(l, x, y, h, w, targets, scaled_anchors, in_h, in_w)
 
         if self.cuda:
-            y_true          = y_true.cuda()
-            noobj_mask      = noobj_mask.cuda()
+            y_true          = y_true.type_as(x)
+            noobj_mask      = noobj_mask.type_as(x)
         
         loss    = 0
         n       = torch.sum(y_true[..., 4] == 1)
@@ -185,7 +185,7 @@ class YOLOLoss(nn.Module):
             #   计算预测结果和真实结果的giou，计算对应有真实框的先验框的giou损失
             #                         loss_cls计算对应有真实框的先验框的分类损失
             #----------------------------------------------------------------#
-            giou        = self.box_giou(pred_boxes, y_true[..., :4])
+            giou        = self.box_giou(pred_boxes, y_true[..., :4]).type_as(x)
             loss_loc    = torch.mean((1 - giou)[y_true[..., 4] == 1])
             loss_cls    = torch.mean(self.BCELoss(pred_cls[y_true[..., 4] == 1], self.smooth_labels(y_true[..., 5:][y_true[..., 4] == 1], self.label_smoothing, self.num_classes)))
             loss        += loss_loc * self.box_ratio + loss_cls * self.cls_ratio
@@ -327,20 +327,18 @@ class YOLOLoss(nn.Module):
         #-----------------------------------------------------#
         bs = len(targets)
 
-        FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
-        LongTensor  = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
         #-----------------------------------------------------#
         #   生成网格，先验框中心，网格左上角
         #-----------------------------------------------------#
         grid_x = torch.linspace(0, in_w - 1, in_w).repeat(in_h, 1).repeat(
-            int(bs * len(self.anchors_mask[l])), 1, 1).view(x.shape).type(FloatTensor)
+            int(bs * len(self.anchors_mask[l])), 1, 1).view(x.shape).type_as(x)
         grid_y = torch.linspace(0, in_h - 1, in_h).repeat(in_w, 1).t().repeat(
-            int(bs * len(self.anchors_mask[l])), 1, 1).view(y.shape).type(FloatTensor)
+            int(bs * len(self.anchors_mask[l])), 1, 1).view(y.shape).type_as(x)
 
         # 生成先验框的宽高
         scaled_anchors_l = np.array(scaled_anchors)[self.anchors_mask[l]]
-        anchor_w = FloatTensor(scaled_anchors_l).index_select(1, LongTensor([0]))
-        anchor_h = FloatTensor(scaled_anchors_l).index_select(1, LongTensor([1]))
+        anchor_w = torch.Tensor(scaled_anchors_l).index_select(1, torch.LongTensor([0])).type_as(x)
+        anchor_h = torch.Tensor(scaled_anchors_l).index_select(1, torch.LongTensor([1])).type_as(x)
         
         anchor_w = anchor_w.repeat(bs, 1).repeat(1, 1, in_h * in_w).view(w.shape)
         anchor_h = anchor_h.repeat(bs, 1).repeat(1, 1, in_h * in_w).view(h.shape)
