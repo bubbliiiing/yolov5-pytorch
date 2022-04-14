@@ -243,7 +243,7 @@ if __name__ == "__main__":
     model = YoloBody(anchors_mask, num_classes, phi)
     weights_init(model)
     if model_path != '':
-        if local_rank:
+        if local_rank == 0:
             #------------------------------------------------------#
             #   权值文件请看README，百度网盘下载
             #------------------------------------------------------#
@@ -255,7 +255,7 @@ if __name__ == "__main__":
         model.load_state_dict(model_dict)
         
     yolo_loss    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
-    if local_rank:
+    if local_rank == 0:
         loss_history = LossHistory(save_dir, model, input_shape=input_shape)
     else:
         loss_history = None
