@@ -60,7 +60,7 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, optimizer, e
                 #   计算损失
                 #----------------------#
                 for l in range(len(outputs)):
-                    loss_item = yolo_loss(l, outputs[l], targets)
+                    loss_item = yolo_loss(l, outputs[l], targets, y_trues[l])
                     loss_value_all  += loss_item
                 loss_value = loss_value_all
 
