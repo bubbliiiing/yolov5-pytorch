@@ -10,11 +10,13 @@ from utils.utils import cvtColor, preprocess_input
 
 
 class YoloDataset(Dataset):
-    def __init__(self, annotation_lines, input_shape, num_classes, epoch_length, mosaic, train, mosaic_ratio = 0.7):
+    def __init__(self, annotation_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length, mosaic, train, mosaic_ratio = 0.7):
         super(YoloDataset, self).__init__()
         self.annotation_lines   = annotation_lines
         self.input_shape        = input_shape
         self.num_classes        = num_classes
+        self.anchors            = anchors
+        self.anchors_mask       = anchors_mask
         self.epoch_length       = epoch_length
         self.mosaic             = mosaic
         self.train              = train
@@ -22,6 +24,9 @@ class YoloDataset(Dataset):
 
         self.epoch_now          = -1
         self.length             = len(self.annotation_lines)
+        
+        self.bbox_attrs         = 5 + num_classes
+        self.threshold          = 4
 
     def __len__(self):
         return self.length
@@ -58,7 +63,8 @@ class YoloDataset(Dataset):
             #---------------------------------------------------#
             box[:, 2:4] = box[:, 2:4] - box[:, 0:2]
             box[:, 0:2] = box[:, 0:2] + box[:, 2:4] / 2
-        return image, box
+        y_true = self.get_target(box)
+        return image, box, y_true
 
     def rand(self, a=0, b=1):
         return np.random.rand()*(b-a) + a
@@ -355,13 +361,127 @@ class YoloDataset(Dataset):
 
         return new_image, new_boxes
 
+    def get_near_points(self, x, y, i, j):
+        sub_x = x - i
+        sub_y = y - j
+        if sub_x > 0.5 and sub_y > 0.5:
+            return [[0, 0], [1, 0], [0, 1]]
+        elif sub_x < 0.5 and sub_y > 0.5:
+            return [[0, 0], [-1, 0], [0, 1]]
+        elif sub_x < 0.5 and sub_y < 0.5:
+            return [[0, 0], [-1, 0], [0, -1]]
+        else:
+            return [[0, 0], [1, 0], [0, -1]]
+
+    def get_target(self, targets):
+        #-----------------------------------------------------------#
+        #   一共有三个特征层数
+        #-----------------------------------------------------------#
+        num_layers  = len(self.anchors_mask)
+        
+        input_shape = np.array(self.input_shape, dtype='int32')
+        grid_shapes = [input_shape // {0:32, 1:16, 2:8, 3:4}[l] for l in range(num_layers)]
+        y_true      = [np.zeros((len(self.anchors_mask[l]), grid_shapes[l][0], grid_shapes[l][1], self.bbox_attrs), dtype='float32') for l in range(num_layers)]
+        box_best_ratio = [np.zeros((len(self.anchors_mask[l]), grid_shapes[l][0], grid_shapes[l][1]), dtype='float32') for l in range(num_layers)]
+        
+        if len(targets) == 0:
+            return y_true
+        
+        for l in range(num_layers):
+            in_h, in_w      = grid_shapes[l]
+            anchors         = np.array(self.anchors) / {0:32, 1:16, 2:8, 3:4}[l]
+            
+            batch_target = np.zeros_like(targets)
+            #-------------------------------------------------------#
+            #   计算出正样本在特征层上的中心点
+            #-------------------------------------------------------#
+            batch_target[:, [0,2]]  = targets[:, [0,2]] * in_w
+            batch_target[:, [1,3]]  = targets[:, [1,3]] * in_h
+            batch_target[:, 4]      = targets[:, 4]
+            #-------------------------------------------------------#
+            #   wh                          : num_true_box, 2
+            #   np.expand_dims(wh, 1)       : num_true_box, 1, 2
+            #   anchors                     : 9, 2
+            #   np.expand_dims(anchors, 0)  : 1, 9, 2
+            #   
+            #   ratios_of_gt_anchors代表每一个真实框和每一个先验框的宽高的比值
+            #   ratios_of_gt_anchors    : num_true_box, 9, 2
+            #   ratios_of_anchors_gt代表每一个先验框和每一个真实框的宽高的比值
+            #   ratios_of_anchors_gt    : num_true_box, 9, 2
+            #
+            #   ratios                  : num_true_box, 9, 4
+            #   max_ratios代表每一个真实框和每一个先验框的宽高的比值的最大值
+            #   max_ratios              : num_true_box, 9
+            #-------------------------------------------------------#
+            ratios_of_gt_anchors = np.expand_dims(batch_target[:, 2:4], 1) / np.expand_dims(anchors, 0)
+            ratios_of_anchors_gt = np.expand_dims(anchors, 0) / np.expand_dims(batch_target[:, 2:4], 1)
+            ratios               = np.concatenate([ratios_of_gt_anchors, ratios_of_anchors_gt], axis = -1)
+            max_ratios           = np.max(ratios, axis = -1)
+            
+            for t, ratio in enumerate(max_ratios):
+                #-------------------------------------------------------#
+                #   ratio : 9
+                #-------------------------------------------------------#
+                over_threshold = ratio < self.threshold
+                over_threshold[np.argmin(ratio)] = True
+                for k, mask in enumerate(self.anchors_mask[l]):
+                    if not over_threshold[mask]:
+                        continue
+                    #----------------------------------------#
+                    #   获得真实框属于哪个网格点
+                    #   x  1.25     => 1
+                    #   y  3.75     => 3
+                    #----------------------------------------#
+                    i = int(np.floor(batch_target[t, 0]))
+                    j = int(np.floor(batch_target[t, 1]))
+                    
+                    offsets = self.get_near_points(batch_target[t, 0], batch_target[t, 1], i, j)
+                    for offset in offsets:
+                        local_i = i + offset[0]
+                        local_j = j + offset[1]
+
+                        if local_i >= in_w or local_i < 0 or local_j >= in_h or local_j < 0:
+                            continue
+
+                        if box_best_ratio[l][k, local_j, local_i] != 0:
+                            if box_best_ratio[l][k, local_j, local_i] > ratio[mask]:
+                                y_true[l][k, local_j, local_i, :] = 0
+                            else:
+                                continue
+                            
+                        #----------------------------------------#
+                        #   取出真实框的种类
+                        #----------------------------------------#
+                        c = int(batch_target[t, 4])
+
+                        #----------------------------------------#
+                        #   tx、ty代表中心调整参数的真实值
+                        #----------------------------------------#
+                        y_true[l][k, local_j, local_i, 0] = batch_target[t, 0]
+                        y_true[l][k, local_j, local_i, 1] = batch_target[t, 1]
+                        y_true[l][k, local_j, local_i, 2] = batch_target[t, 2]
+                        y_true[l][k, local_j, local_i, 3] = batch_target[t, 3]
+                        y_true[l][k, local_j, local_i, 4] = 1
+                        y_true[l][k, local_j, local_i, c + 5] = 1
+                        #----------------------------------------#
+                        #   获得当前先验框最好的比例
+                        #----------------------------------------#
+                        box_best_ratio[l][k, local_j, local_i] = ratio[mask]
+                        
+        return y_true
+    
 # DataLoader中collate_fn使用
 def yolo_dataset_collate(batch):
-    images = []
-    bboxes = []
-    for img, box in batch:
+    images  = []
+    bboxes  = []
+    y_trues = [[] for _ in batch[0][2]]
+    for img, box, y_true in batch:
         images.append(img)
         bboxes.append(box)
-    images = torch.from_numpy(np.array(images)).type(torch.FloatTensor)
-    bboxes = [torch.from_numpy(ann).type(torch.FloatTensor) for ann in bboxes]
-    return images, bboxes
+        for i, sub_y_true in enumerate(y_true):
+            y_trues[i].append(sub_y_true)
+            
+    images  = torch.from_numpy(np.array(images)).type(torch.FloatTensor)
+    bboxes  = [torch.from_numpy(ann).type(torch.FloatTensor) for ann in bboxes]
+    y_trues = [torch.from_numpy(np.array(ann, np.float32)).type(torch.FloatTensor) for ann in y_trues]
+    return images, bboxes,y_trues

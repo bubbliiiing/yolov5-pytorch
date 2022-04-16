@@ -1,4 +1,5 @@
 import math
+from copy import deepcopy
 from functools import partial
 
 import numpy as np
@@ -104,7 +105,7 @@ class YOLOLoss(nn.Module):
     def smooth_labels(self, y_true, label_smoothing, num_classes):
         return y_true * (1.0 - label_smoothing) + label_smoothing / num_classes
 
-    def forward(self, l, input, targets=None):
+    def forward(self, l, input, targets=None, y_true=None):
         #----------------------------------------------------#
         #   l               代表使用的是第几个有效特征层
         #   input的shape为  bs, 3*(5+num_classes), 20, 20
@@ -163,9 +164,10 @@ class YOLOLoss(nn.Module):
         #-----------------------------------------------#
         pred_cls = torch.sigmoid(prediction[..., 5:])
         #-----------------------------------------------#
-        #   获得网络应该有的预测结果
+        #   self.get_target已经合并到dataloader中
+        #   原因是在这里执行过慢，会大大延长训练时间
         #-----------------------------------------------#
-        y_true, noobj_mask = self.get_target(l, targets, scaled_anchors, in_h, in_w)
+        # y_true, noobj_mask = self.get_target(l, targets, scaled_anchors, in_h, in_w)
 
         #---------------------------------------------------------------#
         #   将预测结果进行解码，判断预测结果和真实值的重合程度
@@ -176,7 +178,6 @@ class YOLOLoss(nn.Module):
 
         if self.cuda:
             y_true          = y_true.type_as(x)
-            noobj_mask      = noobj_mask.type_as(x)
         
         loss    = 0
         n       = torch.sum(y_true[..., 4] == 1)
@@ -351,6 +352,54 @@ class YOLOLoss(nn.Module):
         pred_boxes_h    = torch.unsqueeze((h * 2) ** 2 * anchor_h, -1)
         pred_boxes      = torch.cat([pred_boxes_x, pred_boxes_y, pred_boxes_w, pred_boxes_h], dim = -1)
         return pred_boxes
+
+def is_parallel(model):
+    # Returns True if model is of type DP or DDP
+    return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+
+def de_parallel(model):
+    # De-parallelize a model: returns single-GPU model if model is of type DP or DDP
+    return model.module if is_parallel(model) else model
+    
+def copy_attr(a, b, include=(), exclude=()):
+    # Copy attributes from b to a, options to only include [...] and to exclude [...]
+    for k, v in b.__dict__.items():
+        if (len(include) and k not in include) or k.startswith('_') or k in exclude:
+            continue
+        else:
+            setattr(a, k, v)
+
+class ModelEMA:
+    """ Updated Exponential Moving Average (EMA) from https://github.com/rwightman/pytorch-image-models
+    Keeps a moving average of everything in the model state_dict (parameters and buffers)
+    For EMA details see https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
+    """
+
+    def __init__(self, model, decay=0.9999, tau=2000, updates=0):
+        # Create EMA
+        self.ema = deepcopy(de_parallel(model)).eval()  # FP32 EMA
+        # if next(model.parameters()).device.type != 'cpu':
+        #     self.ema.half()  # FP16 EMA
+        self.updates = updates  # number of EMA updates
+        self.decay = lambda x: decay * (1 - math.exp(-x / tau))  # decay exponential ramp (to help early epochs)
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+
+    def update(self, model):
+        # Update EMA parameters
+        with torch.no_grad():
+            self.updates += 1
+            d = self.decay(self.updates)
+
+            msd = de_parallel(model).state_dict()  # model state_dict
+            for k, v in self.ema.state_dict().items():
+                if v.dtype.is_floating_point:
+                    v *= d
+                    v += (1 - d) * msd[k].detach()
+
+    def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
+        # Update EMA attributes
+        copy_attr(self.ema, model, include, exclude)
 
 def weights_init(net, init_type='normal', init_gain = 0.02):
     def init_func(m):

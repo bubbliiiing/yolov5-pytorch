@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from nets.yolo import YoloBody
-from nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr,
+from nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr, ModelEMA,
                                 weights_init)
 from utils.callbacks import LossHistory
 from utils.dataloader import YoloDataset, yolo_dataset_collate
@@ -230,6 +230,7 @@ if __name__ == "__main__":
     else:
         device          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         local_rank      = 0
+        rank            = 0
 
     #------------------------------------------------------#
     #   获取classes和anchor
@@ -259,7 +260,7 @@ if __name__ == "__main__":
         loss_history = LossHistory(save_dir, model, input_shape=input_shape)
     else:
         loss_history = None
-        
+
     if fp16:
         #------------------------------------------------------------------#
         #   torch 1.2不支持amp，建议使用torch 1.7.1及以上正确使用fp16
@@ -291,6 +292,11 @@ if __name__ == "__main__":
             cudnn.benchmark = True
             model_train = model_train.cuda()
             
+    #----------------------------#
+    #   权值平滑
+    #----------------------------#
+    ema = ModelEMA(model_train) if rank == 0 else None
+    
     #---------------------------#
     #   读取数据集对应的txt
     #---------------------------#
@@ -367,8 +373,8 @@ if __name__ == "__main__":
         #---------------------------------------#
         #   构建数据集加载器。
         #---------------------------------------#
-        train_dataset   = YoloDataset(train_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=mosaic, train = True)
-        val_dataset     = YoloDataset(val_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=False, train = False)
+        train_dataset   = YoloDataset(train_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length = UnFreeze_Epoch, mosaic=mosaic, train = True)
+        val_dataset     = YoloDataset(val_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length = UnFreeze_Epoch, mosaic=False, train = False)
         
         if distributed:
             train_sampler   = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True,)
@@ -436,7 +442,7 @@ if __name__ == "__main__":
 
             set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
 
-            fit_one_epoch(model_train, model, yolo_loss, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, fp16, scaler, save_period, save_dir, local_rank)
+            fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, fp16, scaler, save_period, save_dir, local_rank)
             
         if local_rank == 0:
             loss_history.writer.close()
