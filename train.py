@@ -370,6 +370,8 @@ if __name__ == "__main__":
         if epoch_step == 0 or epoch_step_val == 0:
             raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
+        ema.updates     = epoch_step * Init_Epoch
+        
         #---------------------------------------#
         #   构建数据集加载器。
         #---------------------------------------#
@@ -423,16 +425,18 @@ if __name__ == "__main__":
 
                 if epoch_step == 0 or epoch_step_val == 0:
                     raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
+                
+                ema.updates     = epoch_step * epoch
 
                 if distributed:
-                    batch_size = batch_size // ngpus_per_node
+                    batch_size  = batch_size // ngpus_per_node
                     
                 gen             = DataLoader(train_dataset, shuffle = shuffle, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
                                             drop_last=True, collate_fn=yolo_dataset_collate, sampler=train_sampler)
                 gen_val         = DataLoader(val_dataset  , shuffle = shuffle, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
                                             drop_last=True, collate_fn=yolo_dataset_collate, sampler=val_sampler)
 
-                UnFreeze_flag = True
+                UnFreeze_flag   = True
 
             gen.dataset.epoch_now       = epoch
             gen_val.dataset.epoch_now   = epoch
