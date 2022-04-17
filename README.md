@@ -13,7 +13,8 @@
 9. [参考资料 Reference](#Reference)
 
 ## Top News
-**`2022-04`**:**支持多GPU训练，新增各个种类目标数量计算，新增heatmap。**  
+**`2022-04`**:**支持多GPU训练，新增各个种类目标数量计算，新增heatmap；将正样本匹配过程加入dataloader，加快了运算速度；加入EMA效果变好。**  
+BiliBili视频中的原仓库地址为：https://github.com/bubbliiiing/yolov5-pytorch/tree/bilibili
 
 **`2022-02`**:**仓库创建，支持不同尺寸模型训练，分别为s、m、l、x版本的yolov5、支持step、cos学习率下降法、支持adam、sgd优化器选择、支持学习率根据batch_size自适应调整、新增图片裁剪。**  
 
