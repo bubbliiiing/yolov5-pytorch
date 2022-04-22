@@ -8,6 +8,7 @@
 
 import math
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -54,12 +55,23 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
             return tensor
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
+#--------------------------------------#
+#   Gelu激活函数的实现
+#   利用近似的数学公式
+#--------------------------------------#
+class GELU(nn.Module):
+    def __init__(self):
+        super(GELU, self).__init__()
+
+    def forward(self, x):
+        return 0.5 * x * (1 + torch.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * torch.pow(x,3))))
+    
+#---------------------------------------------------------------------------------#
+#   LayerNorm 支持两种形式channels_last (default) or channels_first. 
+#   channels_last   对应具有形状的输入(batch_size, height, width, channels) 
+#   channels_first  对应具有形状的输入(batch_size, channels, height, width).   
+#---------------------------------------------------------------------------------#
 class LayerNorm(nn.Module):
-    """ 
-    LayerNorm 支持两种形式channels_last (default) or channels_first. 
-    channels_last   对应具有形状的输入(batch_size, height, width, channels) 
-    channels_first  对应具有形状的输入(batch_size, channels, height, width).
-    """
     def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
@@ -80,13 +92,13 @@ class LayerNorm(nn.Module):
             x = self.weight[:, None, None] * x + self.bias[:, None, None]
             return x
 
+#--------------------------------------------------------------------------------------------------------------#
+#   ConvNeXt Block有两种等效的实现:
+#   (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
+#   (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
+#   代码中使用（2），因为这个在PyTorch中稍微快一点
+#--------------------------------------------------------------------------------------------------------------#
 class Block(nn.Module):
-    """ 
-    ConvNeXt Block有两种等效的实现:
-    (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
-    (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
-    代码中使用（2），因为这个在PyTorch中稍微快一点
-    """
     def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
         super().__init__()
         #--------------------------#
@@ -98,7 +110,7 @@ class Block(nn.Module):
         #   利用全连接层代替1x1卷积
         #--------------------------#
         self.pwconv1    = nn.Linear(dim, 4 * dim)
-        self.act        = nn.GELU()
+        self.act        = GELU()
         #--------------------------#
         #   利用全连接层代替1x1卷积
         #--------------------------#
@@ -141,12 +153,12 @@ class Block(nn.Module):
         x = input + self.drop_path(x)
         return x
 
+#-----------------------------------------------------#
+#   ConvNeXt
+#   A PyTorch impl of : `A ConvNet for the 2020s`
+#   https://arxiv.org/pdf/2201.03545.pdf
+#-----------------------------------------------------#
 class ConvNeXt(nn.Module):
-    """ 
-    ConvNeXt
-    A PyTorch impl of : `A ConvNet for the 2020s`
-    https://arxiv.org/pdf/2201.03545.pdf
-    """
     def __init__(
         self, in_chans=3, num_classes=1000, depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], 
         drop_path_rate=0., layer_scale_init_value=1e-6, head_init_scale=1., **kwargs
@@ -208,10 +220,8 @@ class ConvNeXt(nn.Module):
         return outs
 
 model_urls = {
-    "convnext_tiny_1k"      : "https://dl.fbaipublicfiles.com/convnext/convnext_tiny_1k_224_ema.pth",
-    "convnext_small_1k"     : "https://dl.fbaipublicfiles.com/convnext/convnext_small_1k_224_ema.pth",
-    "convnext_base_1k"      : "https://dl.fbaipublicfiles.com/convnext/convnext_base_1k_224_ema.pth",
-    "convnext_large_1k"     : "https://dl.fbaipublicfiles.com/convnext/convnext_large_1k_224_ema.pth",
+    "convnext_tiny_1k"      : "https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/convnext_tiny_1k_224_ema_no_jit.pth",
+    "convnext_small_1k"     : "https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/convnext_small_1k_224_ema_no_jit.pth",
 }
 
 #------------------------------------------------------#
@@ -222,7 +232,7 @@ def ConvNeXt_Tiny(pretrained=False, **kwargs):
     if pretrained:
         url = model_urls['convnext_tiny_1k']
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
-        model.load_state_dict(checkpoint["model"], strict=False)
+        model.load_state_dict(checkpoint, strict=False)
         print("Load weights from ", url.split('/')[-1])
     return model
 
@@ -234,28 +244,6 @@ def ConvNeXt_Small(pretrained=False, **kwargs):
     if pretrained:
         url = model_urls['convnext_small_1k']
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
-        model.load_state_dict(checkpoint["model"], strict=False)
-        print("Load weights from ", url.split('/')[-1])
-    return model
-
-#------------------------------------------------------#
-#   后面两个拿来做主干，貌似有点太大了，直接爆显存了
-#   需要的同学可以试试
-#------------------------------------------------------#
-def ConvNeXt_Base(pretrained=False, **kwargs):
-    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], **kwargs)
-    if pretrained:
-        url = model_urls['convnext_base_1k']
-        checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
-        model.load_state_dict(checkpoint["model"], strict=False)
-        print("Load weights from ", url.split('/')[-1])
-    return model
-
-def ConvNeXt_Large(pretrained=False, **kwargs):
-    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[192, 384, 768, 1536], **kwargs)
-    if pretrained:
-        url = model_urls['convnext_large_1k']
-        checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
-        model.load_state_dict(checkpoint["model"], strict=False)
+        model.load_state_dict(checkpoint, strict=False)
         print("Load weights from ", url.split('/')[-1])
     return model

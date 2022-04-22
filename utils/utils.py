@@ -69,10 +69,8 @@ def download_weights(backbone, phi, model_dir="./model_data"):
         backbone = backbone + "_" + phi
     
     download_urls = {
-        "convnext_tiny"         : "https://dl.fbaipublicfiles.com/convnext/convnext_tiny_1k_224_ema.pth",
-        "convnext_small"        : "https://dl.fbaipublicfiles.com/convnext/convnext_small_1k_224_ema.pth",
-        "convnext_base"         : "https://dl.fbaipublicfiles.com/convnext/convnext_base_1k_224_ema.pth",
-        "convnext_large"        : "https://dl.fbaipublicfiles.com/convnext/convnext_large_1k_224_ema.pth",
+        "convnext_tiny"         : "https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/convnext_tiny_1k_224_ema_no_jit.pth",
+        "convnext_small"        : "https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/convnext_small_1k_224_ema_no_jit.pth",
         "cspdarknet_s"          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_s_backbone.pth',
         'cspdarknet_m'          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_m_backbone.pth',
         'cspdarknet_l'          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_l_backbone.pth',
