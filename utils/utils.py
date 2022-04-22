@@ -61,3 +61,26 @@ def get_lr(optimizer):
 def preprocess_input(image):
     image /= 255.0
     return image
+        
+def download_weights(backbone, phi, model_dir="./model_data"):
+    import os
+    from torch.hub import load_state_dict_from_url
+    if backbone == "cspdarknet":
+        backbone = backbone + "_" + phi
+    
+    download_urls = {
+        "convnext_tiny"         : "https://dl.fbaipublicfiles.com/convnext/convnext_tiny_1k_224_ema.pth",
+        "convnext_small"        : "https://dl.fbaipublicfiles.com/convnext/convnext_small_1k_224_ema.pth",
+        "convnext_base"         : "https://dl.fbaipublicfiles.com/convnext/convnext_base_1k_224_ema.pth",
+        "convnext_large"        : "https://dl.fbaipublicfiles.com/convnext/convnext_large_1k_224_ema.pth",
+        "cspdarknet_s"          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_s_backbone.pth',
+        'cspdarknet_m'          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_m_backbone.pth',
+        'cspdarknet_l'          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_l_backbone.pth',
+        'cspdarknet_x'          : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_x_backbone.pth',
+        'swin_transfomer_tiny'  : "https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/swin_tiny_patch4_window7.pth",
+    }
+    url = download_urls[backbone]
+    
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    load_state_dict_from_url(url, model_dir)

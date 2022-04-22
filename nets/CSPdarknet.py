@@ -89,7 +89,7 @@ class SPP(nn.Module):
         return self.cv2(torch.cat([x] + [m(x) for m in self.m], 1))
         
 class CSPDarknet(nn.Module):
-    def __init__(self, base_channels, base_depth):
+    def __init__(self, base_channels, base_depth, phi, pretrained):
         super().__init__()
         #-----------------------------------------------#
         #   输入图片是640, 640, 3
@@ -145,7 +145,17 @@ class CSPDarknet(nn.Module):
             SPP(base_channels * 16, base_channels * 16),
             C3(base_channels * 16, base_channels * 16, base_depth, shortcut=False),
         )
-
+        if pretrained:
+            url = {
+                's' : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_s_backbone.pth',
+                'm' : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_m_backbone.pth',
+                'l' : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_l_backbone.pth',
+                'x' : 'https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/cspdarknet_x_backbone.pth',
+            }[phi]
+            checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", model_dir="./model_data")
+            self.load_state_dict(checkpoint, strict=False)
+            print("Load weights from ", url.split('/')[-1])
+            
     def forward(self, x):
         x = self.stem(x)
         x = self.dark2(x)

@@ -16,7 +16,7 @@ from nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr, Mo
                                 weights_init)
 from utils.callbacks import LossHistory
 from utils.dataloader import YoloDataset, yolo_dataset_collate
-from utils.utils import get_anchors, get_classes
+from utils.utils import get_anchors, get_classes, download_weights
 from utils.utils_fit import fit_one_epoch
 
 '''
@@ -103,7 +103,22 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     input_shape     = [640, 640]
     #------------------------------------------------------#
+    #   backbone        cspdarknet（默认）
+    #                   convnext_tiny
+    #                   convnext_small
+    #                   swin_transfomer_tiny
+    #------------------------------------------------------#
+    backbone        = 'cspdarknet'
+    #----------------------------------------------------------------------------------------------------------------------------#
+    #   pretrained      是否使用主干网络的预训练权重，此处使用的是主干的权重，因此是在模型构建的时候进行加载的。
+    #                   如果设置了model_path，则主干的权值无需加载，pretrained的值无意义。
+    #                   如果不设置model_path，pretrained = True，此时仅加载主干开始训练。
+    #                   如果不设置model_path，pretrained = False，Freeze_Train = Fasle，此时从0开始训练，且没有冻结主干的过程。
+    #----------------------------------------------------------------------------------------------------------------------------#
+    pretrained      = False
+    #------------------------------------------------------#
     #   phi             所使用的YoloV5的版本。s、m、l、x
+    #                   在除cspdarknet的其它主干中仅影响panet的大小
     #------------------------------------------------------#
     phi             = 's'
     #------------------------------------------------------------------#
@@ -238,11 +253,20 @@ if __name__ == "__main__":
     class_names, num_classes = get_classes(classes_path)
     anchors, num_anchors     = get_anchors(anchors_path)
 
+    if pretrained:
+        if distributed:
+            if local_rank == 0:
+                download_weights(backbone, phi)  
+            dist.barrier()
+        else:
+            download_weights(backbone, phi)
+
     #------------------------------------------------------#
     #   创建yolo模型
     #------------------------------------------------------#
-    model = YoloBody(anchors_mask, num_classes, phi)
-    weights_init(model)
+    model = YoloBody(anchors_mask, num_classes, phi, backbone, pretrained=pretrained, input_shape=input_shape)
+    if not pretrained:
+        weights_init(model)
     if model_path != '':
         if local_rank == 0:
             #------------------------------------------------------#
@@ -251,9 +275,19 @@ if __name__ == "__main__":
             print('Load weights {}.'.format(model_path))
         model_dict      = model.state_dict()
         pretrained_dict = torch.load(model_path, map_location = device)
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if np.shape(model_dict[k]) == np.shape(v)}
-        model_dict.update(pretrained_dict)
+        load_key, no_load_key, temp_dict = [], [], {}
+        for k, v in pretrained_dict.items():
+            if k in model_dict.keys() and np.shape(model_dict[k]) == np.shape(v):
+                temp_dict[k] = v
+                load_key.append(k)
+            else:
+                no_load_key.append(k)
+        model_dict.update(temp_dict)
         model.load_state_dict(model_dict)
+        if local_rank == 0:
+            print("\nSuccessful Load Key:", str(load_key)[:500], "……\nSuccessful Load Key Num:", len(load_key))
+            print("\nFail To Load Key:", str(no_load_key)[:500], "……\nFail To Load Key num:", len(no_load_key))
+            print("温馨提示，head部分没有载入是正常现象，Backbone部分没有载入是错误的。")
         
     yolo_loss    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
     if local_rank == 0:

@@ -1,13 +1,16 @@
 import torch
 import torch.nn as nn
 
-from nets.CSPdarknet import CSPDarknet, C3, Conv
+from nets.ConvNext import ConvNeXt_Small, ConvNeXt_Tiny
+from nets.CSPdarknet import C3, Conv, CSPDarknet
+from nets.Swin_transformer import Swin_transformer_Tiny
+
 
 #---------------------------------------------------#
 #   yolo_body
 #---------------------------------------------------#
 class YoloBody(nn.Module):
-    def __init__(self, anchors_mask, num_classes, phi):
+    def __init__(self, anchors_mask, num_classes, phi, backbone='cspdarknet', pretrained=False, input_shape=[640, 640]):
         super(YoloBody, self).__init__()
         depth_dict          = {'s' : 0.33, 'm' : 0.67, 'l' : 1.00, 'x' : 1.33,}
         width_dict          = {'s' : 0.50, 'm' : 0.75, 'l' : 1.00, 'x' : 1.25,}
@@ -19,16 +22,36 @@ class YoloBody(nn.Module):
         #   输入图片是640, 640, 3
         #   初始的基本通道是64
         #-----------------------------------------------#
-
-        #---------------------------------------------------#   
-        #   生成CSPdarknet53的主干模型
-        #   获得三个有效特征层，他们的shape分别是：
-        #   80,80,256
-        #   40,40,512
-        #   20,20,1024
-        #---------------------------------------------------#
-        self.backbone   = CSPDarknet(base_channels, base_depth)
-
+        self.backbone_name  = backbone
+        if backbone == "cspdarknet":
+            #---------------------------------------------------#   
+            #   生成CSPdarknet53的主干模型
+            #   获得三个有效特征层，他们的shape分别是：
+            #   80,80,256
+            #   40,40,512
+            #   20,20,1024
+            #---------------------------------------------------#
+            self.backbone   = CSPDarknet(base_channels, base_depth, phi, pretrained)
+        else:
+            #---------------------------------------------------#   
+            #   如果输入不为cspdarknet，则调整通道数
+            #   使其符合YoloV5的格式
+            #---------------------------------------------------#
+            self.backbone       = {
+                'convnext_tiny'         : ConvNeXt_Tiny,
+                'convnext_small'        : ConvNeXt_Small,
+                'swin_transfomer_tiny'  : Swin_transformer_Tiny,
+            }[backbone](pretrained=pretrained, input_shape=input_shape)
+            in_channels         = {
+                'convnext_tiny'         : [192, 384, 768],
+                'convnext_small'        : [192, 384, 768],
+                'swin_transfomer_tiny'  : [192, 384, 768],
+            }[backbone]
+            feat1_c, feat2_c, feat3_c = in_channels 
+            self.conv_1x1_feat1 = Conv(feat1_c, base_channels * 4, 1, 1)
+            self.conv_1x1_feat2 = Conv(feat2_c, base_channels * 8, 1, 1)
+            self.conv_1x1_feat3 = Conv(feat3_c, base_channels * 16, 1, 1)
+            
         self.upsample   = nn.Upsample(scale_factor=2, mode="nearest")
 
         self.conv_for_feat3         = Conv(base_channels * 16, base_channels * 8, 1, 1)
@@ -53,6 +76,10 @@ class YoloBody(nn.Module):
     def forward(self, x):
         #  backbone
         feat1, feat2, feat3 = self.backbone(x)
+        if self.backbone_name != "cspdarknet":
+            feat1 = self.conv_1x1_feat1(feat1)
+            feat2 = self.conv_1x1_feat2(feat2)
+            feat3 = self.conv_1x1_feat3(feat3)
 
         # 20, 20, 1024 -> 20, 20, 512
         P5          = self.conv_for_feat3(feat3)
