@@ -404,7 +404,8 @@ if __name__ == "__main__":
         if epoch_step == 0 or epoch_step_val == 0:
             raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
-        ema.updates     = epoch_step * Init_Epoch
+        if ema:
+            ema.updates     = epoch_step * Init_Epoch
         
         #---------------------------------------#
         #   构建数据集加载器。
@@ -459,8 +460,9 @@ if __name__ == "__main__":
 
                 if epoch_step == 0 or epoch_step_val == 0:
                     raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
-                
-                ema.updates     = epoch_step * epoch
+                    
+                if ema:
+                    ema.updates     = epoch_step * epoch
 
                 if distributed:
                     batch_size  = batch_size // ngpus_per_node
