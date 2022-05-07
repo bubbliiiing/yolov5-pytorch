@@ -11,10 +11,8 @@ try:
 except:
     pass
 import cv2
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
 import numpy as np
+from matplotlib import pyplot as plt
 
 '''
     0,0 ------> x (width)
