@@ -357,7 +357,7 @@ if __name__ == "__main__":
     #----------------------------#
     #   权值平滑
     #----------------------------#
-    ema = ModelEMA(model_train) if rank == 0 else None
+    ema = ModelEMA(model_train)
     
     #---------------------------#
     #   读取数据集对应的txt

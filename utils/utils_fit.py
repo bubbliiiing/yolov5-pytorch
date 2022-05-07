@@ -20,9 +20,9 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
         images, targets, y_trues = batch[0], batch[1], batch[2]
         with torch.no_grad():
             if cuda:
-                images  = images.cuda()
-                targets = [ann.cuda() for ann in targets]
-                y_trues = [ann.cuda() for ann in y_trues]
+                images  = images.cuda(local_rank)
+                targets = [ann.cuda(local_rank) for ann in targets]
+                y_trues = [ann.cuda(local_rank) for ann in y_trues]
         #----------------------#
         #   清零梯度
         #----------------------#
@@ -97,9 +97,9 @@ def fit_one_epoch(model_train, model, ema, yolo_loss, loss_history, eval_callbac
         images, targets, y_trues = batch[0], batch[1], batch[2]
         with torch.no_grad():
             if cuda:
-                images  = images.cuda()
-                targets = [ann.cuda() for ann in targets]
-                y_trues = [ann.cuda() for ann in y_trues]
+                images  = images.cuda(local_rank)
+                targets = [ann.cuda(local_rank) for ann in targets]
+                y_trues = [ann.cuda(local_rank) for ann in y_trues]
             #----------------------#
             #   清零梯度
             #----------------------#
