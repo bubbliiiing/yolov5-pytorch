@@ -169,7 +169,6 @@ class EvalCallback():
         return 
     
     def on_epoch_end(self, epoch, model_eval):
-        matplotlib.use('Agg')
         if epoch % self.period == 0 and self.eval_flag:
             self.net = model_eval
             if not os.path.exists(self.map_out_path):
