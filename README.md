@@ -36,6 +36,7 @@ YoloX | https://github.com/bubbliiiing/yolox-pytorch
 | COCO-Train2017 | [yolov5_m.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_m.pth) | COCO-Val2017 | 640x640 | 43.9 | 62.6 
 | COCO-Train2017 | [yolov5_l.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_l.pth) | COCO-Val2017 | 640x640 | 47.4 | 66.2 
 | COCO-Train2017 | [yolov5_x.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_x.pth) | COCO-Val2017 | 640x640 | 49.4 | 67.9 
+YoloV5官方保存的是半精度模型，本仓库保存的是全精度模型，所以权值的大小有所差异。   
 
 ## 所需环境
 torch==1.2.0
@@ -44,6 +45,7 @@ torch==1.2.0
 训练所需的权值可在百度网盘中下载。  
 链接: https://pan.baidu.com/s/1gPDsDVX1lbcSNqCKsvzz0A   
 提取码: 3mjs   
+YoloV5官方保存的是半精度模型，本仓库保存的是全精度模型，所以权值的大小有所差异。   
 
 VOC数据集下载地址如下，里面已经包括了训练集、测试集、验证集（与测试集一样），无需再次划分：  
 链接: https://pan.baidu.com/s/19Mw2u_df_nBzsC2lg20fQA    
