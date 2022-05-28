@@ -37,6 +37,8 @@ YoloX | https://github.com/bubbliiiing/yolox-pytorch
 | COCO-Train2017 | [yolov5_l.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_l.pth) | COCO-Val2017 | 640x640 | 47.4 | 66.2 
 | COCO-Train2017 | [yolov5_x.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_x.pth) | COCO-Val2017 | 640x640 | 49.4 | 67.9 
 
+YoloV5官方保存的是半精度模型，本仓库保存的是全精度模型，所以权值的大小有所差异。   
+
 ## 所需环境
 torch==1.2.0
 
