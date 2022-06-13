@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #-------------------------------------------------------#
     map_out_path    = 'map_out'
 
-    image_ids = open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Main/test.txt")).read().strip().split()
+    image_ids = open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Main/train.txt")).read().strip().split()
 
     if not os.path.exists(map_out_path):
         os.makedirs(map_out_path)
