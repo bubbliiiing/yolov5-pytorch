@@ -26,7 +26,8 @@ Efficientnet-Yolo3 | https://github.com/bubbliiiing/efficientnet-yolo3-pytorch
 YoloV4 | https://github.com/bubbliiiing/yolov4-pytorch
 YoloV4-tiny | https://github.com/bubbliiiing/yolov4-tiny-pytorch
 Mobilenet-Yolov4 | https://github.com/bubbliiiing/mobilenet-yolov4-pytorch
-YoloV5 | https://github.com/bubbliiiing/yolov5-pytorch
+YoloV5-V5.0 | https://github.com/bubbliiiing/yolov5-pytorch
+YoloV5-V6.1 | https://github.com/bubbliiiing/yolov5-v6.1-pytorch
 YoloX | https://github.com/bubbliiiing/yolox-pytorch
 
 ## 性能情况
@@ -36,6 +37,8 @@ YoloX | https://github.com/bubbliiiing/yolox-pytorch
 | COCO-Train2017 | [yolov5_m.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_m.pth) | COCO-Val2017 | 640x640 | 43.9 | 62.6 
 | COCO-Train2017 | [yolov5_l.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_l.pth) | COCO-Val2017 | 640x640 | 47.4 | 66.2 
 | COCO-Train2017 | [yolov5_x.pth](https://github.com/bubbliiiing/yolov5-pytorch/releases/download/v1.0/yolov5_x.pth) | COCO-Val2017 | 640x640 | 49.4 | 67.9 
+
+YoloV5官方保存的是半精度模型，本仓库保存的是全精度模型，所以权值的大小有所差异。   
 
 ## 所需环境
 torch==1.2.0

@@ -119,15 +119,29 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     phi             = 'l'
     #------------------------------------------------------------------#
-    #   mosaic          马赛克数据增强
-    #                   参考YoloX，由于Mosaic生成的训练图片，
-    #                   远远脱离自然图片的真实分布。
-    #                   本代码会在训练结束前的N个epoch自动关掉Mosaic
-    #                   100个世代会关闭30个世代（比例可在dataloader.py调整）
-    #   label_smoothing 标签平滑。一般0.01以下。如0.01、0.005
+    #   mosaic              马赛克数据增强。
+    #   mosaic_prob         每个step有多少概率使用mosaic数据增强，默认50%。
+    #
+    #   mixup               是否使用mixup数据增强，仅在mosaic=True时有效。
+    #                       只会对mosaic增强后的图片进行mixup的处理。
+    #   mixup_prob          有多少概率在mosaic后使用mixup数据增强，默认50%。
+    #                       总的mixup概率为mosaic_prob * mixup_prob。
+    #
+    #   special_aug_ratio   参考YoloX，由于Mosaic生成的训练图片，远远脱离自然图片的真实分布。
+    #                       当mosaic=True时，本代码会在special_aug_ratio范围内开启mosaic。
+    #                       默认为前70%个epoch，100个世代会开启70个世代。
     #------------------------------------------------------------------#
     mosaic              = True
+
+    mosaic_prob         = 0.5
+    mixup               = True
+    mixup_prob          = 0.5
+    special_aug_ratio   = 0.7
+    #------------------------------------------------------------------#
+    #   label_smoothing     标签平滑。一般0.01以下。如0.01、0.005。
+    #------------------------------------------------------------------#
     label_smoothing     = 0.005
+
 
     #----------------------------------------------------------------------------------------------------------------------------#
     #   训练分为两个阶段，分别是冻结阶段和解冻阶段。设置冻结阶段是为了满足机器性能不足的同学的训练需求。
@@ -385,6 +399,8 @@ if __name__ == "__main__":
         wanted_step = 5e4 if optimizer_type == "sgd" else 1.5e4
         total_step  = num_train // Unfreeze_batch_size * UnFreeze_Epoch
         if total_step <= wanted_step:
+            if num_train // Unfreeze_batch_size == 0:
+                raise ValueError('数据集过小，无法进行训练，请扩充数据集。')
             wanted_epoch = wanted_step // (num_train // Unfreeze_batch_size) + 1
             print("\n\033[1;33;44m[Warning] 使用%s优化器时，建议将训练总步长设置到%d以上。\033[0m"%(optimizer_type, wanted_step))
             print("\033[1;33;44m[Warning] 本次运行的总训练数据量为%d，Unfreeze_batch_size为%d，共训练%d个Epoch，计算出总训练步长为%d。\033[0m"%(num_train, Unfreeze_batch_size, UnFreeze_Epoch, total_step))
@@ -460,8 +476,10 @@ if __name__ == "__main__":
         #---------------------------------------#
         #   构建数据集加载器。
         #---------------------------------------#
-        train_dataset   = YoloDataset(train_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length = UnFreeze_Epoch, mosaic=mosaic, train = True)
-        val_dataset     = YoloDataset(val_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length = UnFreeze_Epoch, mosaic=False, train = False)
+        train_dataset   = YoloDataset(train_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length=UnFreeze_Epoch, \
+                                        mosaic=mosaic, mixup=mixup, mosaic_prob=mosaic_prob, mixup_prob=mixup_prob, train=True, special_aug_ratio=special_aug_ratio)
+        val_dataset     = YoloDataset(val_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length=UnFreeze_Epoch, \
+                                        mosaic=False, mixup=False, mosaic_prob=0, mixup_prob=0, train=False, special_aug_ratio=0)
         
         if distributed:
             train_sampler   = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True,)
