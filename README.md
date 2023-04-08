@@ -1,3 +1,16 @@
+## 蛇足
+
+我在bubbliiiing的代码中加入了
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+解决了我的Initializing libiomp5md.dll, but found libiomp5md.dll already initialized.的报错问题
+
+同时加入了coco转voc数据集的代码。
+
+
+
+
 ## YOLOV5：You Only Look Once目标检测模型在pytorch当中的实现（edition v5.0 in Ultralytics）
 ---
 
