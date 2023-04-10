@@ -1,6 +1,10 @@
 import colorsys
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 import time
+
+import pandas as pd
+import numpy as np
 
 import cv2
 import numpy as np
@@ -26,8 +30,9 @@ class YOLO(object):
         #   验证集损失较低不代表mAP较高，仅代表该权值在验证集上泛化性能较好。
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #--------------------------------------------------------------------------#
-        "model_path"        : 'model_data/yolov5_s.pth',
-        "classes_path"      : 'model_data/coco_classes.txt',
+        # "model_path"        : 'model_data/yolov5_s.pth',
+        "model_path"        : 'logs/best_epoch_weights.pth',
+        "classes_path"      : 'model_data/cowboy_classes.txt',
         #---------------------------------------------------------------------#
         #   anchors_path代表先验框对应的txt文件，一般不修改。
         #   anchors_mask用于帮助代码找到对应的先验框，一般不修改。
@@ -123,7 +128,7 @@ class YOLO(object):
     #---------------------------------------------------#
     #   检测图片
     #---------------------------------------------------#
-    def detect_image(self, image, crop = False, count = False):
+    def detect_image(self, image, crop = False, count = False, image_name = None):
         #---------------------------------------------------#
         #   计算输入图片的高和宽
         #---------------------------------------------------#
@@ -201,6 +206,8 @@ class YOLO(object):
         #---------------------------------------------------------#
         #   图像绘制
         #---------------------------------------------------------#
+        # data_array = np.array(('',538 ,528,707,616))
+        # data_array = np.asarray(data_array).reshape(1,5)
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]
             box             = top_boxes[i]
@@ -214,10 +221,20 @@ class YOLO(object):
             right   = min(image.size[0], np.floor(right).astype('int32'))
 
             label = '{} {:.2f}'.format(predicted_class, score)
+
+            print(label, top, left, bottom, right)
+            data=([image_name],[label], [top], [left], [bottom], [right])
+            array = np.asarray(data).reshape(1,6)
+            if 'data_array' not in dir():       #查看变量有没有定义，没有就加一个定义
+                data_array = array
+            else:
+                data_array = np.concatenate((data_array,array),axis=0)
+            
+
             draw = ImageDraw.Draw(image)
             label_size = draw.textsize(label, font)
             label = label.encode('utf-8')
-            print(label, top, left, bottom, right)
+
             
             if top - label_size[1] >= 0:
                 text_origin = np.array([left, top - label_size[1]])
@@ -229,7 +246,13 @@ class YOLO(object):
             draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
             draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
             del draw
+        # if image_name != None:
 
+        test=pd.DataFrame(data_array,columns=['image_name','label', 'top', 'left', 'bottom', 'right'])
+        if os.path.exists('save1.csv'):
+            test.to_csv('save1.csv', index=False, sep=',',mode='a', header=None)
+        else:
+            test.to_csv('save1.csv', index=False, sep=',',mode='a')
         return image
 
     def get_FPS(self, image, test_interval):
