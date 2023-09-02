@@ -1,20 +1,27 @@
-aeroplane
-bicycle
-bird
-boat
-bottle
-bus
-car
-cat
-chair
-cow
-diningtable
-dog
-horse
-motorbike
-person
-pottedplant
-sheep
-sofa
-train
-tvmonitor
+Cherry leaf
+Peach leaf
+Corn leaf blight
+Apple rust leaf
+Potato leaf late blight
+Strawberry leaf
+Corn rust leaf
+Tomato leaf late blight
+Tomato mold leaf
+Potato leaf early blight
+Apple leaf
+Tomato leaf yellow virus
+Blueberry leaf
+Tomato leaf mosaic virus
+Raspberry leaf
+Tomato leaf bacterial spot
+Squash Powdery mildew leaf
+grape leaf
+Corn Gray leaf spot
+Tomato Early blight leaf
+Apple Scab Leaf
+Tomato Septoria leaf spot
+Tomato leaf
+Soyabean leaf
+Bell_pepper leaf spot
+Bell_pepper leaf
+grape leaf black rot
